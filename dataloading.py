@@ -16,30 +16,13 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn import preprocessing
 import seaborn as sns
-=columns = ['user', 'activity', 'timestamp', 'x-axis', 'y-axis', 'z-axis']
-rawData = pd.read_csv('/Users/harshitakumar/Documents/Research/Dhawan Lab/Radiomics/WISDM Feature/WISDM_ar_v1.1_raw.txt',  on_bad_lines='skip', header = None, names = columns)
-rawData = rawData.dropna() #dropping na values
-print(rawData.shape)
-rawData['z-axis'] = rawData['z-axis'].str.replace(';', '')#remmoving semi-colon
-rawData['z-axis'] = rawData['z-axis'].apply(lambda x:float(x)) # transforming the z-axis to float
-rawData = rawData[rawData['timestamp'] != 0] #dropping time = 0 values
-rawData = rawData.sort_values(by = ['user', 'timestamp'], ignore_index=True)
-print(rawData.info())
-cartData = rawData[rawData.columns[3:]].to_numpy()
+from sklearn.metrics import mean_squared_error
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from sklearn.preprocessing import MinMaxScaler
+from keras.preprocessing.sequence import TimeseriesGenerator
 
-def rectToSph(xyz): #Converting x,y,z to r,theta,pi
-    new = np.empty([len(xyz),3])
-    xSqySq = xyz[:,0]**2+xyz[:,1]**2 #calculating x^2 + y^2
-    new[:,0] = np.sqrt(xSqySq+xyz[:,2]**2) #calculating r 
-    new[:,1] = np.arctan2(np.sqrt(xSqySq), xyz[:,2]) #calculating theta
-    new[:,2] = np.arctan2(xyz[:,1], xyz[:,0]) #calculating pi
-    return new
-sphData = rectToSph(cartData)
-cartData = np.concatenate((rawData[rawData.columns[0:3]].to_numpy(), cartData), axis = 1)
-sphData = np.concatenate((rawData[rawData.columns[0:3]].to_numpy(), sphData), axis = 1)
-
-trainData = cartData[cartData[:,0] <= 27]
-testData = cartData[cartData[:,0] > 27] # test data -> Users from User ID = 28 to 36 (i.e. 9 users)
 #%% LOADING AND PREPROCESSING THE DATA FILE
 columns = ['user', 'activity', 'timestamp', 'x-axis', 'y-axis', 'z-axis']
 rawData = pd.read_csv('/Users/harshitakumar/Documents/Research/Dhawan Lab/Radiomics/WISDM Feature/WISDM_ar_v1.1_raw.txt',  on_bad_lines='skip', header = None, names = columns)
@@ -236,3 +219,29 @@ plt.title("Confusion matrix", fontsize = 15)
 plt.ylabel("True label")
 plt.xlabel("Predicted label")
 plt.show()
+#%% LSTM
+testSize = 9
+scaler = MinMaxScaler(feature_range=(0,1))
+scaler.fit(trainFeatures)
+scaledTrain = scaler.transform(trainFeatures)
+scaledTest = scaler.transform(testFeatures)
+
+numInputs = 9
+generator = TimeseriesGenerator(data = scaledTrain,targets = scaledTrain, length = numInputs, batch_size=3)
+
+#set the number of features eg univariate = 1
+numFeatures = 1
+
+#build an LSTM model and specify parameters
+model = Sequential()
+model.add(LSTM(100,input_shape = (numInputs, numFeatures),activation='relu',return_sequences=True))
+model.add(LSTM(64))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mean_squared_error')
+
+#print the model summary
+model.summary()
+
+model.fit(generator, epochs = 100, verbose=2)
+
+
